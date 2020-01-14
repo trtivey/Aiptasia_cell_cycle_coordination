@@ -1,0 +1,19 @@
+﻿Treatment,Phase,Number,Stdev,Count,Sterr,Numbers,Species
+Log-phase,G1,76.53575025,1.3,3,0.75055535,76,B. minutum
+Log-phase,S,8.459214502,1,3,0.577350269,8.4,B. minutum
+Log-phase,G2,15.00503525,0.5,3,0.288675135,14.9,B. minutum
+Stationary,G1,95.15151515,3.1,3,1.789785834,94.2,B. minutum
+Stationary,S,4.141414141,2.1,3,1.212435565,4.1,B. minutum
+Stationary,G2,0.707070707,0.6,3,0.346410162,0.7,B. minutum
+In hospite,G1,76.65826738,4.257933771,3,2.458319209,72,B. minutum
+In hospite,S,22.53611101,5.236729259,3,3.023427047,21.16666667,B. minutum
+In hospite,G2,0.805621606,0.265769324,3,0.15344199,0.756666667,B. minutum
+ Log-phase,G1,81.40960071,3.54,3,2.043819953,81.1,B. psygmophilum
+ Log-phase,S,7.485166087,2.97,3,1.714730299,7.4567,B. psygmophilum
+ Log-phase,G2,11.1052332,2.877,3,1.661036724,11.063,B. psygmophilum
+ Stationary,G1,96.10600492,0.417,3,0.240755062,96,B. psygmophilum
+ Stationary,S,1.368209135,0.17,3,0.098149546,1.3667,B. psygmophilum
+ Stationary,G2,2.525785942,0.4168,3,0.240639592,2.523,B. psygmophilum
+ In hospite,G1,58.30192066,7.158444896,3,4.132930088,54.13333333,B. psygmophilum
+ In hospite,S,39.27481601,7.655281401,3,4.419778778,36.46666667,B. psygmophilum
+ In hospite,G2,2.423263328,0.657951366,3,0.379868398,2.25,B. psygmophilum

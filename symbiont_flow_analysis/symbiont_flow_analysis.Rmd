@@ -1,0 +1,61 @@
+---
+title: "symbiont_flow_analysis"
+author: "Trevor Tivey"
+date: "12/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("/local/path/to/data")
+set.seed(123)
+
+#libraries
+library(ggplot2)
+library(ggsignif)
+```
+
+## Plots
+
+```{r, plots, echo = FALSE}
+# Plot for Bmin Bpsyg log-phase culture, stable culture, and isolates
+BminBpsyg <- read.csv("BminBpsyg.csv", header = T)
+BminBpsyg$Phase <- factor(BminBpsyg$Phase, levels = c("G2", "S", "G1"))
+BminBpsyg$Treatment <- factor(BminBpsyg$Treatment, levels = c(" In hospite"," Stationary", " Log-phase","In hospite","Stationary","Log-phase"))
+g <- ggplot() + geom_bar(aes(y = Number, x = Treatment, group = Species, fill = Phase), data = BminBpsyg, stat = "identity")
+k = g + coord_flip() + theme_minimal() + labs(x = "" , y = "Cell cycle population percentage") + scale_fill_brewer(palette = "RdYlBu")
+k
+ggsave(plot=k, filename="fig5A.pdf", width=5, height=5, units="in")
+
+# Plot for Bmin and Bpsyg under different Nitrogen conditions
+nitrogen <- read.csv("nitrogen.csv", header = T)
+nitrogen$Phase <- factor(nitrogen$Phase, levels = c("G2", "S", "G1"))
+nitrogen$Treatment <- factor(nitrogen$Treatment, levels = c(" N-limited  "," N-replete ", "N-limited ","N-replete"))
+h <- ggplot() + geom_bar(aes(y = Number, x = Treatment, group = Species, fill = Phase), data = nitrogen, stat = "identity")
+j <- h + coord_flip() + theme_minimal() + labs(x = "" , y = "Cell cycle population percentage") + scale_fill_brewer(palette = "RdYlBu")
+j
+ggsave(plot=j, filename="fig6A.pdf", width=5, height=3.5, units="in")
+
+# Plot for Bmin cell cycle isolated within fed and starved host anemones
+
+fedstarveccfig <- read.csv("fedstarvecellcyclefigure.csv", header = T)
+fedstarveccfig$Phase <- factor(fedstarveccfig$Phase, levels = c("G1","S","G2"))
+
+l <- ggplot(aes(Phase, Average, color = Treatment, shape = Treatment), data = fedstarveccfig) + 
+  geom_errorbar(aes(ymin = Average - Stdev, ymax = Average + Stdev, width = 0.2),
+                color = "dark grey", position = position_dodge(width = 0.3)) +
+  geom_point(size = 3, position = position_dodge(width = 0.3)) +
+  theme_minimal() + labs(title = "", x = " ", y = " ") +
+  theme(axis.text.x  = element_text(angle=0, size=12), axis.text.y  = element_text(angle=0, size=12)) +
+  scale_color_manual(values=c("#d8b365", "#998ec3")) +
+  scale_shape_manual(values=c(19,15))
+l
+ggsave(plot=l, filename="fig6C.eps", width=4, height=5, units="in")
+
+
+
+```
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
