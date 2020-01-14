@@ -1,0 +1,93 @@
+---
+title: "NN_list_apo"
+author: "Trevor Tivey"
+date: "2/20/2019"
+output: html_document
+---
+
+
+
+```{r, libraries, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("/local/path/to/data")
+set.seed(123)
+
+#libraries
+
+library(data.table)
+library(ggplot2)
+library(spatstat)
+library(plyr)
+library(dplyr)
+
+
+```
+
+## create lists
+
+```{r, apo lists, echo = FALSE}
+
+# Set directory to folder containing x,y,z coordinates of cell populations
+setwd("./input apo")
+# Create subset lists that are organized in corresponding order to each other
+  # Files containing object coordinates of host EdU-labeled nuclei
+  edulist = list.files(pattern = " [1-3].txt")
+  edulist
+  # Files containing object coordinates of all host nuclei (Hoechst-labeled)
+  nuclist = list.files(pattern = "_2.txt")
+  nuclist
+  
+```
+
+## Loop for apos
+
+You can also embed plots, for example:
+
+```{r, apo for loop, echo=FALSE}
+
+# Loop to find k=1-12 nearest neighbors between symbionts and edu, symbionts and nuclei, and edu and nuclei
+for(i in 1:length(edulist)) {
+  setwd("./input apo")
+  edu <- read.csv(edulist[i], header = T, sep = "\t")
+  nuclei <- read.csv(nuclist[i], header = T, sep = "\t")
+
+  filenmEN <- sub("txt", "csv", edulist)
+  print(filenmEN[i])
+
+  filenmNS <- sub("txt", "csv", nuclist)
+  print(filenmNS[i])
+
+  nucleix <- range(nuclei[,11])
+  nucleiy <- range(nuclei[,12])
+  nucleiz <- range(nuclei[,13])
+  pnuclei <- ppp(nuclei[,11],nuclei[,12], nucleix, nucleiy)
+  pnuclei3 <- pp3(nuclei[,11],nuclei[,12],nuclei[,13],nucleix, nucleiy, nucleiz)
+
+  edux <- range(edu[,12])
+  eduy <- range(edu[,13])
+  eduz <- range(edu[,14])
+  pedu <- ppp(edu[,12],edu[,13], nucleix, nucleiy)
+  pedu3 <- pp3(edu[,12],edu[,13],edu[,14],nucleix, nucleiy, nucleiz)
+
+  edunuclei <- nncross(pedu3,pnuclei3,k=1:12)
+  nucleiedu <- nncross(pnuclei3,pedu3,k=1:12)
+  
+  edunuclei2d <- nncross(pedu,pnuclei,k=1:12)
+  nucleiedu2d <- nncross(pnuclei,pedu,k=1:12)
+  
+  setwd("../output apo/3d nn test")
+  
+  write.csv(edunuclei, filenmEN[i])
+  write.csv(nucleiedu, filenmNS[i])
+  
+  setwd("../2d nn test")
+  
+  write.csv(edunuclei2d, filenmEN[i])
+  write.csv(nucleiedu2d, filenmNS[i])
+  setwd("../..")
+  
+}
+
+```
+
