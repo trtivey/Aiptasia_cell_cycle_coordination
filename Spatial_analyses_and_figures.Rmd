@@ -1,0 +1,600 @@
+---
+title: "Spatial_analyses_plots"
+author: "Trevor Tivey"
+date: "2/20/2019"
+output: html_document
+---
+
+```{r, libraries, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("/local/path/to/data")
+set.seed(123)
+
+#libraries
+
+library(data.table)
+library(ggplot2)
+library(spatstat)
+library(plyr)
+library(dplyr)
+library(tidyr)
+#library(aacc)
+
+
+```
+
+## Create list and data table of NN distances for aposymbiotic tentacles
+
+```{r, apo lists, echo = FALSE}
+# create list of NN csv files and combine into one large data frame
+
+setwd("./apo_analysis/output apo/3d nn test")
+
+#files containing NN distances of all host EdU+ nuclei to closest total nuclei
+edulistapo2 = list.files(pattern = " [1-3].csv")
+edulistapo2
+
+# Create list
+eduapofiles = lapply(edulistapo2, read.csv, header=T, stringsAsFactors = F)
+
+# Create data table
+eduapofiles2 <- rbindlist(eduapofiles, fill = T)
+colnames(eduapofiles2) <- paste("enapo", colnames(eduapofiles2), sep = "_")
+
+
+```
+
+## Create list and data frames of NN distances for symbiotic tentacles
+
+```{r, apo lists, echo = FALSE}
+
+# Create list of NN csv files and combine into three large data frames for each comparison:
+
+# 1. EdU points to nearest symbiont
+# 2. Nuclei points to nearest symbiont
+# 3. EdU points to nearest nuclei
+
+setwd("./sym_analysis/output sym/3d nn test")
+
+# lists
+
+#files containing NN dists between host EdU+ nuclei and symbionts
+edusymlist2 = list.files(pattern = "split.tif_2.csv")
+edusymlist2
+
+#files containing object coordinates of total nuclei and symbionts
+nucsymlist2 = list.files(pattern = " [1-3].tif_2.csv")
+nucsymlist2
+
+#files containing object coordinates of host EdU+ nuclei and total nuclei
+edunucslist2 = list.files(pattern = " [1-3].csv")
+edunucslist2
+
+# apply lists and create data tables
+
+# Distances from EdU to symbionts
+edusymfiles = lapply(edusymlist2, read.csv, header=T, stringsAsFactors = F)
+edusymfiles2 <- rbindlist(edusymfiles, fill = T)
+colnames(edusymfiles2) <- paste("es", colnames(edusymfiles2), sep = "_")
+
+# Distances from nuclei to symbionts
+nucsymfiles = lapply(nucsymlist2, read.csv, header=T, stringsAsFactors = F)
+nucsymfiles2 <- rbindlist(nucsymfiles, fill = T)
+colnames(nucsymfiles2) <- paste("ns", colnames(nucsymfiles2), sep = "_")
+
+# Distances from EdU to nuclei
+edunucsfiles = lapply(edunucslist2, read.csv, header=T, stringsAsFactors = F)
+edunucsfiles2 <- rbindlist(edunucsfiles, fill = T)
+colnames(edunucsfiles2) <- paste("en", colnames(edunucsfiles2), sep = "_")
+
+```
+
+## Test NN distance distribution for normality
+
+```{r, apo lists, echo = FALSE}
+# test for normality
+qqnorm(edusymfiles2$es_dist.1)
+qqline(edusymfiles2$es_dist.1)
+
+qqnorm(nucsymfiles2$ns_dist.1)
+qqline(nucsymfiles2$ns_dist.1)
+
+qqnorm(edunucsfiles2$en_dist.1)
+qqline(edunucsfiles2$en_dist.1)
+
+qqnorm(edusymfiles2$es_dist.12)
+qqline(edusymfiles2$es_dist.12)
+
+qqnorm(nucsymfiles2$ns_dist.12)
+qqline(nucsymfiles2$ns_dist.12)
+
+qqnorm(edunucsfiles2$en_dist.12)
+qqline(edunucsfiles2$en_dist.12)
+
+qqnorm(eduapofiles2$enapo_dist.1)
+qqline(eduapofiles2$enapo_dist.1)
+
+qqnorm(eduapofiles2$enapo_dist.12)
+qqline(eduapofiles2$enapo_dist.12)
+
+# Skew in data, analyze distribution using nonparametric tests
+
+```
+
+## Combine all files into a single NN file for comparison
+
+```{r, apo lists, echo = FALSE}
+# Combine files
+
+combinedfiles <- cbind(edusymfiles2, edunucsfiles2)
+
+len <- max(nrow(combinedfiles), nrow(nucsymfiles2))
+#len#delete
+#nrow(combinedfiles) #delete                   
+#nrow(nucsymfiles2)#delete
+nrow(nucsymfiles2) - nrow(combinedfiles) # difference is 207834 
+temprow <- matrix(c(rep.int(NA,length(combinedfiles))),nrow=207834,ncol=length(combinedfiles))
+
+# Create a data.frame and give cols the same names as data
+newrow <- data.frame(temprow)
+colnames(newrow) <- colnames(combinedfiles)
+
+# rbind the empty row to data
+combinedsamelength <- rbind(combinedfiles,newrow)
+combinedfiles2 <- cbind(combinedsamelength, nucsymfiles2)
+#combinedfiles <- cbind(combinedfiles, nucfiles2) #delete
+
+
+## Combine apo and sym lists
+
+len <- max(nrow(eduapofiles2), nrow(combinedfiles2))
+#len#delete
+#nrow(eduapofiles2)     #delete               
+#nrow(combinedfiles2)#delete
+nrow(combinedfiles2) - nrow(eduapofiles2) # difference is 207653
+temprow <- matrix(c(rep.int(NA,length(eduapofiles2))),nrow=207653,ncol=length(eduapofiles2))
+
+# Create a data.frame and give cols the same names as data
+newrow <- data.frame(temprow)
+colnames(newrow) <- colnames(eduapofiles2)
+
+# rbind the empty row to data
+eduapofiles2samelengthapo <- rbind(eduapofiles2,newrow)
+
+combined_nn <- cbind(eduapofiles2samelengthapo, combinedfiles2)
+#combinedfiles <- cbind(combinedfiles, nucfiles2)#delete
+
+```
+
+## Fig 4D and 3A: Mann-Whitney U tests: is distance of EdU -> Symbiont greater than EdU --> nuclei
+
+```{r, apo lists, echo = FALSE}
+
+# Comparison between EdU-->symbiont distance and EdU-->host nuclei distance distributions
+# EdU to symbiont distance is greater than EdU to host nuclei distances
+wilcox.test(x = combined_nn$es_dist.1, y = combined_nn$en_dist.1, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.2, y = combined_nn$en_dist.2, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.3, y = combined_nn$en_dist.3, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.4, y = combined_nn$en_dist.4, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.5, y = combined_nn$en_dist.5, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.6, y = combined_nn$en_dist.6, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.7, y = combined_nn$en_dist.7, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.8, y = combined_nn$en_dist.8, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.9, y = combined_nn$en_dist.9, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.10, y = combined_nn$en_dist.10, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.11, y = combined_nn$en_dist.11, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.12, y = combined_nn$en_dist.12, data = combined_nn, alternative = "greater")
+t.test(x = combined_nn$es_dist.1, y = combined_nn$en_dist.1, data = combined_nn)
+t.test(x = combined_nn$es_dist.2, y = combined_nn$en_dist.2, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.3, y = combined_nn$en_dist.3, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.4, y = combined_nn$en_dist.4, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.5, y = combined_nn$en_dist.5, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.6, y = combined_nn$en_dist.6, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.7, y = combined_nn$en_dist.7, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.8, y = combined_nn$en_dist.8, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.9, y = combined_nn$en_dist.9, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.10, y = combined_nn$en_dist.10, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.11, y = combined_nn$en_dist.11, data = combined_nn, alternative = "greater")
+wilcox.test(x = combined_nn$es_dist.12, y = combined_nn$en_dist.12, data = combined_nn, alternative = "greater")
+```
+
+## Fig 3A: Mann-Whitney U tests: is distance of EdU -> Symbiont less than Nuclei -> symbiont
+
+```{r, apo lists, echo = FALSE}
+# Comparison between EdU-->symbiont distance and nuclei-->symbiont distance distributions
+# EdU to symbiont distance is less than nuclei to symbiont distances
+wilcox.test(x = combined_nn$es_dist.1, y = combined_nn$ns_dist.1, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.2, y = combined_nn$ns_dist.2, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.3, y = combined_nn$ns_dist.3, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.4, y = combined_nn$ns_dist.4, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.5, y = combined_nn$ns_dist.5, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.6, y = combined_nn$ns_dist.6, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.7, y = combined_nn$ns_dist.7, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.8, y = combined_nn$ns_dist.8, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.9, y = combined_nn$ns_dist.9, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.10, y = combined_nn$ns_dist.10, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.11, y = combined_nn$ns_dist.11, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$es_dist.12, y = combined_nn$ns_dist.12, data = combined_nn, alternative = "less", conf.int = T)
+
+# All highly significant differences between distributions. EdU objects are much further away to symbionts than to host nuclei, as expected. 
+# Positive control
+
+# All tests indicate significant location shift in distributions. 
+# All tests indicate edu-symbiont distance is less than nuclei-symbiont distance.
+
+```
+
+# Fig 3C: Medians of NN dists, Percentages of EdU+ inside median distance to symbiont
+
+```{r, apo lists, echo = FALSE}
+
+# Find medians of NN distributions for EdU-symbiont and Nuc-symbiont
+median(combined_nn$es_dist.1, na.rm = T)
+median(combined_nn$ns_dist.1, na.rm = T)
+median(combined_nn$es_dist.2, na.rm = T)
+median(combined_nn$ns_dist.2, na.rm = T)
+median(combined_nn$es_dist.3, na.rm = T)
+median(combined_nn$ns_dist.3, na.rm = T)
+median(combined_nn$es_dist.4, na.rm = T)
+median(combined_nn$ns_dist.4, na.rm = T)
+median(combined_nn$es_dist.5, na.rm = T)
+median(combined_nn$ns_dist.5, na.rm = T)
+median(combined_nn$es_dist.6, na.rm = T)
+median(combined_nn$ns_dist.6, na.rm = T)
+median(combined_nn$es_dist.7, na.rm = T)
+median(combined_nn$ns_dist.7, na.rm = T)
+median(combined_nn$es_dist.8, na.rm = T)
+median(combined_nn$ns_dist.8, na.rm = T)
+median(combined_nn$es_dist.9, na.rm = T)
+median(combined_nn$ns_dist.9, na.rm = T)
+median(combined_nn$es_dist.10, na.rm = T)
+median(combined_nn$ns_dist.10, na.rm = T)
+median(combined_nn$es_dist.11, na.rm = T)
+median(combined_nn$ns_dist.11, na.rm = T)
+median(combined_nn$es_dist.12, na.rm = T)
+median(combined_nn$ns_dist.12, na.rm = T)
+
+# Estimate percentage of EdU+ host nuclei inside median distance to symbiont (7 µm) 
+count_edu_total <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 0)
+count_edu_in <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 < 7)
+count_edu_out <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 7)
+perc_edu_in <- length(count_edu_in)/length(count_edu_total)
+perc_edu_out <-length(count_edu_out)/length(count_edu_total)
+perc_edu_in
+perc_edu_out
+
+# Estimate percentage of total host nuclei inside median distance to symbiont (7 µm) 
+count_nuc_total <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 0)
+count_nuc_in <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 < 7)
+count_nuc_out <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 7)
+perc_nuc_in <- length(count_nuc_in)/length(count_nuc_total)
+perc_nuc_out <-length(count_nuc_out)/length(count_nuc_total)
+perc_nuc_in
+perc_nuc_out
+
+# Estimate percentage of total host nuclei inside distance to symbiont (8 µm) 
+count_edu_total <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 0)
+count_edu_in <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 < 8)
+count_edu_out <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 8)
+perc_edu_in <- length(count_edu_in)/length(count_edu_total)
+perc_edu_out <-length(count_edu_out)/length(count_edu_total)
+perc_edu_in
+perc_edu_out
+
+# Estimate percentage of total host nuclei inside distance to symbiont (8 µm) 
+count_nuc_total <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 0)
+count_nuc_in <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 < 8)
+count_nuc_out <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 8)
+perc_nuc_in <- length(count_nuc_in)/length(count_nuc_total)
+perc_nuc_out <-length(count_nuc_out)/length(count_nuc_total)
+perc_nuc_in
+perc_nuc_out
+
+
+count_edu_total <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 0)
+count_edu_in <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 < 13)
+count_edu_out <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 13)
+perc_edu_in <- length(count_edu_in)/length(count_edu_total)
+perc_edu_out <-length(count_edu_out)/length(count_edu_total)
+perc_edu_in
+perc_edu_out
+
+count_nuc_total <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 0)
+count_nuc_in <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 < 13)
+count_nuc_out <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 13)
+perc_nuc_in <- length(count_nuc_in)/length(count_nuc_total)
+perc_nuc_out <-length(count_nuc_out)/length(count_nuc_total)
+perc_nuc_in
+perc_nuc_out
+
+# Estimate percentage of total host nuclei inside distance to symbiont (30 µm) 
+count_edu_total <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 0)
+count_edu_in <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 < 30)
+count_edu_out <- subset(combined_nn$es_dist.1, combined_nn$es_dist.1 > 30)
+perc_edu_in <- length(count_edu_in)/length(count_edu_total)
+perc_edu_out <-length(count_edu_out)/length(count_edu_total)
+perc_edu_in
+perc_edu_out
+
+# Estimate percentage of total host nuclei inside distance to symbiont (30 µm) 
+count_nuc_total <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 0)
+count_nuc_in <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 < 30)
+count_nuc_out <- subset(combined_nn$ns_dist.1, combined_nn$ns_dist.1 > 30)
+perc_nuc_in <- length(count_nuc_in)/length(count_nuc_total)
+perc_nuc_out <-length(count_nuc_out)/length(count_nuc_total)
+perc_nuc_in
+perc_nuc_out
+
+```
+
+# Fig 3B t-test comparisons
+
+```{r, apo lists, echo = FALSE}
+
+# t-tests describing the means of distributions (previously used Mann-Whitney to find differences between same distributions)
+t.test(x = combined_nn$es_dist.1, y = combined_nn$ns_dist.1, data = combined_nn)
+t.test(x = combined_nn$es_dist.2, y = combined_nn$ns_dist.2, data = combined_nn)
+t.test(x = combined_nn$es_dist.3, y = combined_nn$ns_dist.3, data = combined_nn)
+t.test(x = combined_nn$es_dist.4, y = combined_nn$ns_dist.4, data = combined_nn)
+t.test(x = combined_nn$es_dist.5, y = combined_nn$ns_dist.5, data = combined_nn)
+t.test(x = combined_nn$es_dist.6, y = combined_nn$ns_dist.6, data = combined_nn)
+t.test(x = combined_nn$es_dist.7, y = combined_nn$ns_dist.7, data = combined_nn)
+t.test(x = combined_nn$es_dist.8, y = combined_nn$ns_dist.8, data = combined_nn)
+t.test(x = combined_nn$es_dist.9, y = combined_nn$ns_dist.9, data = combined_nn)
+t.test(x = combined_nn$es_dist.10, y = combined_nn$ns_dist.10, data = combined_nn)
+t.test(x = combined_nn$es_dist.11, y = combined_nn$ns_dist.11, data = combined_nn)
+t.test(x = combined_nn$es_dist.12, y = combined_nn$ns_dist.12, data = combined_nn)
+
+```
+
+
+
+## Fig 4E Mann-Whitney U tests: is distance of EdU -> nuclei shorter in apos compared to syms
+
+```{r, apo lists, echo = FALSE}
+
+## Wilcox test for compared NN distances between apos and syms
+
+
+# Test to show 1st nearest neighbor has a smaller distance than 2nd nearest neighbor.
+wilcox.test(x = combined_nn$enapo_dist.1, y = combined_nn$enapo_dist.2, data = combined_nn, alternative = "less")
+
+
+# Test differences between magnitude of NN distances at k = 1,2,...,12
+
+wilcox.test(x = combined_nn$enapo_dist.1, y = combined_nn$en_dist.1, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.2, y = combined_nn$en_dist.2, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.3, y = combined_nn$en_dist.3, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.4, y = combined_nn$en_dist.4, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.5, y = combined_nn$en_dist.5, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.6, y = combined_nn$en_dist.6, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.7, y = combined_nn$en_dist.7, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.8, y = combined_nn$en_dist.8, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.9, y = combined_nn$en_dist.9, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.10, y = combined_nn$en_dist.10, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.11, y = combined_nn$en_dist.11, data = combined_nn, alternative = "less", conf.int = T)
+wilcox.test(x = combined_nn$enapo_dist.12, y = combined_nn$en_dist.12, data = combined_nn, alternative = "less", conf.int = T)
+
+# Apo distances from edu to nuclei are closer in apo anemones compared to edu-nuclei distances in sym anemones
+
+```
+# Fig 4E median comparisons
+
+```{r, apo lists, echo = FALSE}
+# Medians for edu-nuclei comparisons for apo and sym
+median(combined_nn$enapo_dist.1, na.rm = T)
+median(combined_nn$en_dist.1, na.rm = T)
+median(combined_nn$enapo_dist.2, na.rm = T)
+median(combined_nn$en_dist.2, na.rm = T)
+median(combined_nn$enapo_dist.3, na.rm = T)
+median(combined_nn$en_dist.3, na.rm = T)
+median(combined_nn$enapo_dist.4, na.rm = T)
+median(combined_nn$en_dist.4, na.rm = T)
+median(combined_nn$enapo_dist.5, na.rm = T)
+median(combined_nn$en_dist.5, na.rm = T)
+median(combined_nn$enapo_dist.6, na.rm = T)
+median(combined_nn$en_dist.6, na.rm = T)
+median(combined_nn$enapo_dist.7, na.rm = T)
+median(combined_nn$en_dist.7, na.rm = T)
+median(combined_nn$enapo_dist.8, na.rm = T)
+median(combined_nn$en_dist.8, na.rm = T)
+median(combined_nn$enapo_dist.9, na.rm = T)
+median(combined_nn$en_dist.9, na.rm = T)
+median(combined_nn$enapo_dist.10, na.rm = T)
+median(combined_nn$en_dist.10, na.rm = T)
+median(combined_nn$enapo_dist.11, na.rm = T)
+median(combined_nn$en_dist.11, na.rm = T)
+median(combined_nn$enapo_dist.12, na.rm = T)
+median(combined_nn$en_dist.12, na.rm = T)
+```
+# Fig 4E t-test comparisons
+
+```{r, apo lists, echo = FALSE}
+# t-tests describing the means of distributions (previously used Mann-Whitney to find differences between same distributions)
+t.test(x = combined_nn$enapo_dist.1, y = combined_nn$en_dist.1, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.2, y = combined_nn$en_dist.2, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.3, y = combined_nn$en_dist.3, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.4, y = combined_nn$en_dist.4, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.5, y = combined_nn$en_dist.5, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.6, y = combined_nn$en_dist.6, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.7, y = combined_nn$en_dist.7, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.8, y = combined_nn$en_dist.8, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.9, y = combined_nn$en_dist.9, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.10, y = combined_nn$en_dist.10, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.11, y = combined_nn$en_dist.11, data = combined_nn)
+t.test(x = combined_nn$enapo_dist.12, y = combined_nn$en_dist.12, data = combined_nn)
+```
+
+## plot: Figure 3A
+
+```{r, apo lists, echo = FALSE}
+
+#equal alpha
+equal_alpha_plot <- ggplot() +
+  geom_density(aes(x=es_dist.1), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) + 
+  geom_density(aes(x=ns_dist.1), alpha = 0.8, fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.2), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.2), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.4), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.4), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.6), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.6), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.8), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.8), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.12), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.12), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) + 
+  geom_vline(xintercept=7, linetype="dotted", size = .8) +
+  xlim(0,100) + theme_minimal() + xlab("nearest neighbor distance (microns)")
+#ggsave("equalalpha.pdf", height = 5, width = 6.5)
+equal_alpha_plot
+
+#gradient alpha
+gradient_plot <- ggplot() +
+  geom_density(aes(x=es_dist.1), alpha = 1,  fill = "#d95f02", data=edusymfiles2) + 
+  geom_density(aes(x=ns_dist.1), alpha = 1, fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.2), alpha = 0.9,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.2), alpha = 0.9,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.4), alpha = 0.8,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.4), alpha = 0.8,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.6), alpha = 0.7,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.6), alpha = 0.7,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.8), alpha = 0.6,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.8), alpha = 0.6,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) +
+  geom_density(aes(x=es_dist.12), alpha = 0.5,  fill = "#d95f02", data=edusymfiles2) +
+  geom_density(aes(x=ns_dist.12), alpha = 0.5,  fill = "#7570b3", linetype = 6, data=nucsymfiles2) + 
+  geom_vline(xintercept=7, linetype="dotted", size = .8) +
+  xlim(0,100) + theme_minimal() + xlab("nearest neighbor distance (microns)")
+#ggsave("gradientalpha.pdf", height = 5, width = 6.5)
+gradient_plot
+```
+
+
+
+## figure 3 sym-apo t-test compoarison
+
+```{r, apo lists, echo = FALSE}
+
+apo_sym_mean <- combined_nn %>% summarise_all(funs(mean(., na.rm = TRUE)))
+apo_sym_sd <- combined_nn %>% summarise_all(funs(sd(., na.rm = TRUE)))
+apo_sym_median <- combined_nn %>% summarise_all(funs(median(., na.rm = TRUE)))
+apo_sym_IQR <- combined_nn %>% summarise_all(funs(IQR(., na.rm = TRUE)))
+apo_sym_mad <- combined_nn %>% summarise_all(funs(mad(., na.rm = TRUE)))
+apo_sym_N <- combined_nn %>% summarise_all(funs(n_distinct(., na.rm = TRUE)))
+apo_sym <- bind_rows(apo_sym_mean, apo_sym_sd, apo_sym_median, apo_sym_IQR, apo_sym_mad, apo_sym_N)
+apo_sym_sum <- transpose(apo_sym)
+colnames(apo_sym_sum) <- c("mean","sd", "median", "IQR", "mad", "n")
+rownames(apo_sym_sum) <- colnames(apo_sym)
+NNname <- rownames(apo_sym_sum)
+apo_sym_sum <- cbind(apo_sym_sum,NNname)
+apo_sym_sum_sub <- apo_sym_sum[rownames(apo_sym_sum) %like% "dist.", ]
+
+apo_sym_final <- separate(apo_sym_sum_sub, NNname, c("name","dist","NN"))
+apo_sym_final$NN <- as.numeric(apo_sym_final$NN)
+apo_sym_final$NN <- as.factor(apo_sym_final$NN)
+#apo_sym_final_reordered <- apo_sym_final %>% arrange(NN,name)
+
+```
+
+## plot figure 3B,3C t-test
+
+```{r, apo lists, echo = FALSE}
+
+sym_only <- apo_sym_final[rownames(apo_sym_final) %like% "es|ns" ,]
+
+sym_en_mean_plot <- ggplot(sym_only, aes(x = NN, y=mean, shape = name, color = name, group = name)) +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), color = "dark gray", width = 0.4, position=position_dodge(width=.5)) +
+  geom_point(position=position_dodge(width=.5)) +
+  geom_signif(y_position = c(46,52,59,65,70,76,81,86,90,94,97,100), 
+              xmin = c(0.75,1.75,2.75,3.75,4.75,5.75,6.75,7.75,8.75,9.75,10.75,11.75),
+              xmax = c(1.25,2.25,3.25,4.25,5.25,6.25,7.25,8.25,9.25,10.25,11.25,12.25),
+              annotation = c("*"), tip_length = 0,color = "black") +
+  theme_minimal() + xlab(expression(paste("Nearest Neighbor (", italic("k"), " 1-12 closest objects)"))) +
+  ylab("mean NN distance (microns)") +
+  scale_y_continuous(limits = c(-5, 100)) +
+  #scale_fill_discrete(name = "State", labels = c("Apo","Sym")) +
+  theme(legend.position = c(0.89, 0.12)) +
+  labs(color = "State", shape = "State") +
+  scale_color_manual(labels = c("EdU+", "Hoechst"), values = c("#d95f02", "#7570b3")) +
+  scale_shape_manual(labels = c("EdU+", "Hoechst"), values = c(17, 19))
+
+sym_en_mean_plot 
+#ggsave("sym_en_mean_plot.eps", height = 6, width = 9.5)
+
+sym_en_median_plot <- ggplot(sym_only, aes(x = NN, y=median, shape = name, color = name, group = name)) +
+  geom_errorbar(aes(ymin=median-IQR, ymax=median+IQR), color = "dark gray", width = 0.4, position=position_dodge(width=.5)) +
+  geom_point(position=position_dodge(width=.5)) +
+  geom_signif(y_position = c(29,35,43,48,53,57,61,64,68,71,75,79), 
+              xmin = c(0.75,1.75,2.75,3.75,4.75,5.75,6.75,7.75,8.75,9.75,10.75,11.75),
+              xmax = c(1.25,2.25,3.25,4.25,5.25,6.25,7.25,8.25,9.25,10.25,11.25,12.25),
+              annotation = c("*"), tip_length = 0,color = "black") +
+  theme_minimal() + xlab(expression(paste("Nearest Neighbor (", italic("k"), " 1-12 closest objects)"))) +
+  ylab("median NN distance (microns)") +
+  scale_y_continuous(limits = c(0, 100)) +
+  #scale_fill_discrete(name = "State", labels = c("Apo","Sym")) +
+  theme(legend.position = c(0.89, 0.12)) +
+  labs(color = "State", shape = "State") +
+  scale_color_manual(labels = c("EdU+", "Hoechst"), values = c("#d95f02", "#7570b3")) +
+  scale_shape_manual(labels = c("EdU+", "Hoechst"), values = c(17, 19))
+
+sym_en_median_plot 
+#ggsave("sym_en_median_plot.pdf", height = 6, width = 9.5)
+#ggsave("sym_en_median_plot.eps", height = 6, width = 9.5)
+
+```
+
+## plot: Figure 4D
+
+```{r, apo lists, echo = FALSE}
+# EDU
+edu_nuc_nn_plot <- ggplot() +
+  geom_density(aes(x=enapo_dist.1), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.1), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  geom_density(aes(x=enapo_dist.2), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.2), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  geom_density(aes(x=enapo_dist.4), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.4), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  geom_density(aes(x=enapo_dist.6), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.6), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  geom_density(aes(x=enapo_dist.8), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.8), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  geom_density(aes(x=enapo_dist.12), alpha = 0.8,  fill = "pink", data=eduapofiles2) +
+  geom_density(aes(x=en_dist.12), alpha = 0.8,  fill = "#1b9e77", data=edunucsfiles2) +
+  xlim(0,35) + theme_minimal() + xlab("Nearest Neighbor distance (microns)")
+
+edu_nuc_nn_plot
+#ggsave("edu-nuc-nn.pdf", height = 4, width = 7.5)
+```
+
+## plot figure 4E
+
+```{r, apo lists, echo = FALSE}
+
+apo_sym_only <- apo_sym_final[rownames(apo_sym_final) %like% "en", ]
+apo_sym_only$name <- as.factor(apo_sym_only$name)
+apo_sym_only$name <- factor(apo_sym_only$name,levels=c("enapo","en"))
+
+apo_sym_en_median_plot <- ggplot(apo_sym_only, aes(x = NN, y=median, shape = name, color = name, group = name)) +
+  geom_errorbar(aes(ymin=median-mad, ymax=median+mad), color = "dark gray", width = 0.4, position=position_dodge(width=.5)) +
+  geom_point(position=position_dodge(width=.5)) +
+  geom_signif(y_position = c(9,11,13,14.5,16,17,18,19,20,21,22,23), 
+              xmin = c(0.75,1.75,2.75,3.75,4.75,5.75,6.75,7.75,8.75,9.75,10.75,11.75),
+              xmax = c(1.25,2.25,3.25,4.25,5.25,6.25,7.25,8.25,9.25,10.25,11.25,12.25),
+              annotation = c("*"), tip_length = 0,color = "black") +
+  theme_minimal() + xlab(expression(paste("Nearest Neighbor (", italic("k"), " 1-12 closest objects)"))) +
+  ylab("median NN distance (microns)") +
+  scale_y_continuous(limits = c(0, 25)) +
+  #scale_fill_discrete(name = "State", labels = c("Apo","Sym")) +
+  theme(legend.position = c(0.85, 0.25)) +
+  labs(color = "State", shape = "State") +
+  scale_color_manual(labels = c("Apo", "Sym"), values = c("pink","#1b9e77")) +
+  scale_shape_manual(labels = c("Apo", "Sym"), values = c(19,17))
+
+apo_sym_en_median_plot
+#ggsave("apo_sym_en_median_plot_new.eps", height = 4, width = 8.5)
+#ggsave("apo_sym_en_median_plot_new.pdf", height = 4, width = 8.5)
+```
+
+
+
+

@@ -1,0 +1,538 @@
+---
+title: "Spatial_analyses_symbiont_location"
+author: "Trevor Tivey"
+date: "1/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("/local/path/to/data")
+set.seed(123)
+
+#libraries
+library(data.table)
+library(ggplot2)
+library(spatstat)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(ggsignif)
+library(scales)
+scientific_10 <- function(x) {
+  parse(text=gsub("e", " %*% 10^", scientific_format()(x)))
+  }
+```
+
+```{r, echo=FALSE}
+
+### Create Apo Lists
+
+setwd("./apo_analysis/apoout-h-r")
+hrfiles <- list.files(pattern = ".txt")
+hrfiles
+apohrcombined <- adply(hrfiles, 1, read.csv, header = T, sep = "\t")
+
+setwd("../apoout-v-r")
+vrfiles <- list.files(pattern = ".txt")
+vrfiles
+apovrcombined <- adply(vrfiles, 1, read.csv, header = T, sep = "\t")
+
+setwd("../apoout-e-r")
+erfiles <- list.files(pattern = ".txt")
+erfiles
+apoercombined <- adply(erfiles, 1, read.csv, header = T, sep = "\t")
+
+setwd("../..")
+#write.csv(apohrcombined, "apo_combined_nuclei.csv")
+#write.csv(apoercombined, "apo_combined_edu.csv")
+#write.csv(apovrcombined, "apo_combined_volumes.csv")
+
+
+### Create Sym Lists
+
+setwd("./sym_analysis/nuclei")
+hsfiles <- list.files(pattern = ".txt")
+hsfiles
+hscombined <- adply(hsfiles, 1, read.csv, header = T, sep = "\t")
+
+
+setwd("../volume")
+vsfiles <- list.files(pattern = ".txt")
+vsfiles
+vscombined <- adply(vsfiles, 1, read.csv, header = T, sep = "\t")
+
+
+setwd("../edu")
+esfiles <- list.files(pattern = ".txt")
+esfiles
+escombined <- adply(esfiles, 1, read.csv, header = T, sep = "\t")
+
+
+setwd("../symbionts")
+sfiles <- list.files(pattern = ".txt")
+sfiles
+scombined <- adply(sfiles, 1, read.csv, header = T, sep = "\t")
+
+setwd("../..")
+#write.csv(hscombined, "sym_combined_nuclei.csv")
+#write.csv(escombined, "sym_combined_edu.csv")
+#write.csv(scombined, "sym_combined_symbionts.csv")
+#write.csv(vscombined, "sym_combined_volumes.csv")
+
+```
+
+### Summary Statistics
+
+```{r, echo=FALSE}
+
+
+# apo summary statistics
+
+# hoechst apo
+apohrsum <- ddply(apohrcombined, c("X1"), summarise,
+                  hN    = length(Volume..pixel.3.),
+                  hmean = mean(Volume..pixel.3.),
+                  hsd   = sd(Volume..pixel.3.),
+                  hse   = hsd / sqrt(hN)
+)
+apohrsum
+
+# edu apo
+apoersum <- ddply(apoercombined, c("X1"), summarise,
+                  eN    = length(Volume..micron.3.),
+                  emean = mean(Volume..micron.3.),
+                  esd   = sd(Volume..micron.3.),
+                  ese   = esd / sqrt(eN)
+)
+apoersum
+
+
+# sym summary statistics
+
+# hoechst symbiotic
+symhssum <- ddply(hscombined, c("X1"), summarise,
+                  hN    = length(Volume..pixel.3.),
+                  hmean = mean(Volume..pixel.3.),
+                  hsd   = sd(Volume..pixel.3.),
+                  hse   = hsd / sqrt(hN)
+)
+symhssum
+
+# edu symbiotic
+symessum <- ddply(escombined, c("X1"), summarise,
+                  eN    = length(Volume..micron.3.),
+                  emean = mean(Volume..micron.3.),
+                  esd   = sd(Volume..micron.3.),
+                  ese   = esd / sqrt(eN)
+)
+symessum
+
+# symbiont symbiotic
+symsymsum <- ddply(scombined, c("X1"), summarise,
+                  sN    = length(Volume..pixel.3.),
+                  smean = mean(Volume..pixel.3.),
+                  ssd   = sd(Volume..pixel.3.),
+                  sse   = ssd / sqrt(sN)
+)
+symsymsum
+
+```
+
+### Combining Files
+
+```{r, echo=FALSE}
+
+symsymcom <- cbind(vscombined,symsymsum)
+
+symcom <- cbind(vscombined,symessum)
+symcom <- cbind(symcom,symhssum)
+
+apocom <- cbind(apovrcombined,apoersum)
+apocom <- cbind(apocom,apohrsum)
+
+len_sym <- length(symcom$eN) #95
+symcom$state <- rep("sym", len_sym)
+
+len_apo <- length(apocom$eN)
+apocom$state <- rep("apo", len_apo)
+
+symapocom <- rbind(symcom,apocom)
+```
+
+
+### Calculate densities
+
+```{r, echo=FALSE}
+
+# Calculate densities
+symsymcom$symsymdensity = symsymcom$sN/symsymcom$Volume..micron.3.
+symsymcom$symsymdensitymm3 = symsymcom$symsymdensity * 1000000000
+mean(symsymcom$symsymdensity)
+mean(symsymcom$symsymdensitymm3) # mm3 5.0e5/mm3
+sd(symsymcom$symsymdensitymm3) # mm3 2.3e5/mm3
+mean(symsymcom$symsymdensitymm3^(2/3)) # mm2 6.4e3/mm2
+sd(symsymcom$symsymdensitymm3^(2/3)) # mm2  1.8e3/mm2
+range(symsymcom$symsymdensitymm3^(2/3)) # mm2 3.2e3/mm2 to 1.2e4/mm2
+182401^(2/3)
+1297735^(2/3)
+
+symapocom$edudensity = symapocom$eN/symapocom$Volume..micron.3.
+symapocom$edudensitymm3 = symapocom$edudensity * 1000000000
+symapocom$edudensity1000 = symapocom$edudensity * 1000000000
+symapocom$edudensity2 = symapocom$eN/symapocom$Surface..micron.2.
+symapocom$edudensity2mm2 = symapocom$edudensity2 * 1000000
+
+symapocom$hdensity = symapocom$hN/symapocom$Volume..micron.3.
+symapocom$hdensitymm3 = symapocom$hdensity * 1000000000
+
+symapocom$percentedu = symapocom$eN/symapocom$hN * 100
+
+symapocom$cellsize = symapocom$Volume..micron.3./symapocom$hN
+radiusofhostcell <- (3/(4*pi) * symapocom$cellsize)^(1/3)
+symapocom$cellsizediameter = 2*(radiusofhostcell)
+
+```
+
+### T-tests comparing EdU Density, Percent EdU, Hoecsht Density by symbiotic state.
+```{r, echo=FALSE}
+t.test(edudensity ~ state, data = symapocom) #0.0232
+t.test(edudensitymm3 ~ state, data = symapocom) #3.5e5 v 3.9e5
+t.test(percentedu ~ state, data = symapocom) #8.747e-5 8.6 v 10.2
+t.test(hdensity ~ state, data = symapocom) #0.002189 0.0041 v 0.0038
+t.test(hdensitymm3 ~ state, data = symapocom) #4.1e6 v 3.8e6
+t.test(cellsizediameter ~ state, data = symapocom) #0.002113 7.80 v 7.95
+wilcox.test(edudensity ~ state, data = symapocom) #0.0256
+wilcox.test(percentedu ~ state, data = symapocom) #0.0005
+wilcox.test(hdensity ~ state, data = symapocom) #0.0015
+
+qqnorm(symapocom$edudensitymm3) 
+qqline(symapocom$edudensitymm3) 
+qqnorm(symapocom$hdensitymm3) 
+qqline(symapocom$hdensitymm3)
+qqnorm(symapocom$percentedu)
+qqline(symapocom$percentedu)
+
+#apos have higher nuclei density but lower edu density
+#apos have lower percent density of edu as well
+
+```
+
+### Summarizing statistics for plotting data
+
+```{r, echo=FALSE}
+symapocom_clean <- symapocom[, !duplicated(colnames(symapocom))]
+
+symapocom_ed <- ddply(symapocom_clean, c("state"), summarise,
+                      N = length(edudensitymm3),
+                      mean = mean(edudensitymm3),
+                      sd = sd(edudensitymm3),
+                      se = sd / sqrt(N),
+                      median = median(edudensitymm3),
+                      mad = mad(edudensitymm3)
+)
+symapocom_ed
+
+symapocom_ep <- ddply(symapocom_clean, c("state"), summarise,
+                      N = length(percentedu),
+                      mean = mean(percentedu),
+                      sd = sd(percentedu),
+                      se = sd / sqrt(N),
+                      median = median(percentedu),
+                      mad = mad(percentedu))
+symapocom_ed
+
+symapocom_hd <- ddply(symapocom_clean, c("state"), summarise,
+                      N = length(hdensitymm3),
+                      mean = mean(hdensitymm3),
+                      sd = sd(hdensitymm3),
+                      se = sd / sqrt(N),
+                      median = median(hdensitymm3),
+                      mad = mad(hdensitymm3))
+symapocom_hd
+
+```
+
+### Plots comparing (1) EdU density (2) EdU percentage and (3) Nuclei Density
+
+```{r, echo=FALSE}
+
+
+symapocom$state <- factor(symapocom$state, levels=c("apo","sym"),
+                          labels=c("Apo","Sym"))
+
+ggplot(data = symapocom, aes(x = state, y = edudensitymm3, fill = state)) +
+  geom_boxplot(aes(fill = state)) +
+  scale_y_continuous(label= function(x) {
+    ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scientific_format()(x)))))
+    },limits = c(0, 1000000),breaks = seq(0,1000000,100000)) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=0, size=10 ), legend.position="none") +
+  scale_fill_manual(labels=c("Apo","Sym"),values=c("pink", "#1b9e77")) +
+  labs(x="State",y = expression(Proliferative ~ nuclei ~ density ~   ~ (nuclei ~ mm^{-3}))) 
+#ggsave("edudensity_fig3.pdf", height = 5, width = 2)
+
+ggplot(data = symapocom, aes(x = state, y = percentedu, fill = state)) + 
+  geom_boxplot(aes(group = state, fill = state)) +
+  scale_y_continuous(limits = c(0, 25),breaks = seq(0,25,5)) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=0, size=10 ), legend.position="none") +
+  scale_fill_manual(labels=c("Apo","Sym"),values=c("pink", "#1b9e77")) +
+  labs(x="State",y = expression("% " ~ Proliferative ~ nuclei)) 
+#ggsave("edupercent_fig3b.pdf", height = 5, width = 2)
+
+ggplot(data = symapocom, aes(x = state, y = hdensitymm3)) + 
+  geom_boxplot(aes(group = state, fill = state)) +
+  scale_y_continuous(label= function(x) {
+    ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scientific_format()(x)))))
+    }, limits = c(0, 8000000),breaks = seq(0,5e7,1e6)) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=0, size=10 ), legend.position="none") +
+  scale_fill_manual(labels=c("Apo","Sym"),values=c("pink", "#1b9e77")) +
+  labs(x="State",y = expression(Total ~ nuclei ~ density ~   ~ (nuclei ~ mm^{-3}))) 
+
+#ggsave("hdensity_fig3c.pdf", height = 5, width = 2)
+
+
+```
+### Find where nuclei are located on z-axis to determine whether gastrodermal or epidermal
+
+```{r, echo=FALSE}
+
+#escombined
+#hscombined
+#scombined
+
+#apoercombined
+#apohrcombined
+#stat summary on Z for each tentacle imaged.
+
+#stat summary on 
+
+zhssum <- ddply(hscombined, c("X1"), summarise,
+                hN    = length(Z),
+                hmean = mean(Z),
+                hsd   = sd(Z),
+                hse   = hsd / sqrt(hN),
+                hmedian = median(Z)
+)
+
+
+zssum <- ddply(scombined, c("X1"), summarise,
+               sN    = length(Z),
+               smean = mean(Z),
+               ssd   = sd(Z),
+               sse   = ssd / sqrt(sN),
+               smedian = median(Z)
+               
+)
+
+
+zessum <- ddply(escombined, c("X1"), summarise,
+                eN    = length(Z),
+                emean = mean(Z),
+                esd   = sd(Z),
+                ese   = esd / sqrt(eN),
+                emedian = median(Z)
+)
+
+
+zahsum <- ddply(apohrcombined, c("X1"), summarise,
+                ahN    = length(Z),
+                ahmean = mean(Z),
+                ahsd   = sd(Z),
+                ahse   = ahsd / sqrt(ahN),
+                ahmedian = median(Z)
+)
+
+
+zaesum <- ddply(apoercombined, c("X1"), summarise,
+                aeN    = length(Z),
+                aemean = mean(Z),
+                aesd   = sd(Z),
+                aese   = aesd / sqrt(aeN),
+                aemedian = median(Z)
+)
+
+```
+
+```{r, echo=FALSE}
+# average z-axis location per tentacle
+
+zaesum #apo edu
+zahsum #apo hoechst
+zessum #sym edu
+zssum #sym sym
+zhssum #sym hoechst
+
+#test mean z of EdU vs hoechst
+t.test(zaesum$aemean, zahsum$ahmean) # 0.1551 no difference, approx 9.5, 9.8
+t.test(zessum$emean, zhssum$hmean) # 0.1642 no difference, approx 8.6m 8.3
+t.test(zssum$smean, zhssum$hmean) # 0.0545 difference 8.8 8.3
+#test difference between edu and hoechst paired per tentacle
+t.test(zaesum$aemean, zahsum$ahmean,paired = T) # 2.2e-16 sig difference edu -.3
+t.test(zessum$emean, zhssum$hmean, paired = T) # 4.9e-9 sig difference edu + 0.4
+t.test(zssum$smean, zhssum$hmean, paired = T) # 3.4e-14 sig difference + 0.5
+t.test(zssum$smean, zessum$emean, paired = T) # 0.037 sig difference + 0.1
+#for each tentacle, EdU points are closer to mean symbionts than to hoechst 
+t.test(zaesum$aemedian, zahsum$ahmedian) # .196 9.3 9.6 enhanced in epidermis in apos
+
+t.test(zaesum$aemedian, zahsum$ahmedian,paired = T) # 7.0e-5 sig difference edu -.3
+
+t.test(zessum$emedian, zhssum$hmedian) # 0.249 7.8 7.5 EdU is found throughout in thicker gastrodermis
+t.test(zessum$emedian, zhssum$hmedian, paired = T) # 0.001 sig difference edu + 0.3
+t.test(zssum$smedian, zhssum$hmedian, paired = T) # 2.2e-16 sig difference + 1.25
+t.test(zssum$smedian, zessum$emedian, paired = T) # 1.7e-10 sig difference + 0.94
+
+
+#test differences between apo and sym distribution
+apodistz = zahsum$ahmean - zaesum$aemean
+symdistz = zhssum$hmean - zessum$emean
+symdistedusymz = zssum$smean - zessum$emean
+apodistmedz = zahsum$ahmedian - zaesum$aemedian
+symdistmedz = zhssum$hmedian - zessum$emedian
+symdistedusymmedz = zssum$smedian - zessum$emedian
+symdistedusymmedz
+symdistmedz
+symnormalizeddf <- data.frame(symdistz,symdistedusymz, symdistmedz,symdistedusymmedz)
+
+
+t.test(apodistz,symdistz) # 2.2e-16 different distributions, apo is 
+t.test(apodistmedz,symdistmedz) # 8.1e-7 different distributions, apo is 
+
+
+```
+### Create summary dataframe for plotting distribution differences
+```{r, echo=FALSE}
+prolif_nuc_norm_apo_mean <- zaesum$aemean - zahsum$ahmean
+prolif_nuc_norm_apo_med <- zaesum$aemedian - zahsum$ahmedian
+prolif_nuc_norm_apo <- data.frame(prolif_nuc_norm_apo_mean, prolif_nuc_norm_apo_med)
+prolif_nuc_norm_apo.tidy <- gather(prolif_nuc_norm_apo)
+prolif_nuc_norm_sym <- zessum$emean - zhssum$hmean
+prolif_nuc_norm_sym_mean <- zessum$emean - zhssum$hmean
+prolif_nuc_norm_sym_med <- zessum$emedian - zhssum$hmedian
+prolif_nuc_norm_sym <- data.frame(prolif_nuc_norm_sym_mean, prolif_nuc_norm_sym_med)
+prolif_nuc_norm_sym.tidy <- gather(prolif_nuc_norm_sym)
+
+
+combined_normalizeddf <- rbind(prolif_nuc_norm_apo.tidy, prolif_nuc_norm_sym.tidy)
+combined_normalizeddf$key <- factor(combined_normalizeddf$key, 
+                                    levels=c("prolif_nuc_norm_apo_med","prolif_nuc_norm_sym_med","prolif_nuc_norm_apo_mean","prolif_nuc_norm_sym_mean"))
+combined_normalizeddf
+
+combined_normalizeddf_med <- combined_normalizeddf[grep("med", (combined_normalizeddf$key)), ]
+combined_normalizeddf_med$key <- factor(combined_normalizeddf_med$key, 
+                                    levels=c("prolif_nuc_norm_apo_med","prolif_nuc_norm_sym_med"),
+                                    labels=c("Apo","Sym"))
+
+```
+
+```{r, echo=FALSE}
+
+ggplot(data = combined_normalizeddf_med, aes(x = key, y = value)) + 
+  geom_boxplot(aes(group = key, fill = key)) +
+  scale_y_continuous(limits = c(-3,4),breaks = seq(-3,4,0.5)) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=0, size=10 ), legend.position="none") +
+  scale_fill_manual(labels=c("Apo","Sym"), values=c("pink", "#1b9e77")) + 
+  xlab("State") + ylab("Normalized Z-axis location") + labs("")
+#ggsave("aposymzttest_fig3f.pdf", height = 5, width = 2)
+
+
+#median
+ggplot(symnormalizeddf, aes(x = symdistmedz, y = symdistedusymmedz)) +
+  geom_point() +
+  geom_density_2d() + theme_minimal() + 
+  ylab("Distance from median symbiont center to EdU+ nuclei") +
+  xlab("Distance from median host nuclei to EdU+ nuclei") +
+  xlim(-4,4) + ylim(-4,4) +
+  geom_vline(xintercept=0, size = .8) +
+  geom_hline(yintercept=0, size = .8)
+
+#mean
+ggplot(symnormalizeddf, aes(x = symdistz, y = symdistedusymz)) +
+  geom_point() +
+  geom_density_2d() + theme_minimal() + 
+  ylab("Distance from median symbiont center to EdU+ nuclei") +
+  xlab("Distance from median host nuclei to EdU+ nuclei") +
+  xlim(-4,4) + ylim(-4,4) +
+  geom_vline(xintercept=0, size = .8) +
+  geom_hline(yintercept=0, size = .8)
+
+```
+### Finding differences in distributions between apo, sym, hoechst, edu, symbiont combinations
+```{r, echo=FALSE}
+
+#escombined
+#hscombined
+#scombined
+#apoercombined
+#apohrcombined
+
+t.test(vscombined$Volume..micron.3., apovrcombined$Volume..micron.3.)
+t.test(apohrcombined$Z,apoercombined$Z) #apoh 10, apoe 9.6
+t.test(escombined$Z,apoercombined$Z) #sym 9.2, apo 9.6
+t.test(hscombined$Z,apohrcombined$Z) #sym 8.6, apo 9.9
+t.test(escombined$Z,hscombined$Z) #sym 9.2, sym 8.6
+t.test(escombined$Z,scombined$Z) #sym 9.2, sym 9.4
+
+wilcox.test(vscombined$Volume..micron.3., apovrcombined$Volume..micron.3.)
+wilcox.test(apohrcombined$Z,apoercombined$Z) #apoh 10, apoe 9.6
+wilcox.test(escombined$Z,apoercombined$Z) #sym 9.2, apo 9.6
+wilcox.test(hscombined$Z,apohrcombined$Z) #sym 8.6, apo 9.9
+wilcox.test(escombined$Z,hscombined$Z) #sym 9.2, sym 8.6
+wilcox.test(escombined$Z,scombined$Z) #sym 9.2, sym 9.4
+
+wilcox.test(vscombined$Volume..micron.3., apovrcombined$Volume..micron.3.)
+wilcox.test(apohrcombined$Z,apoercombined$Z) #apoh 10, apoe 9.6
+wilcox.test(escombined$Z,apoercombined$Z) #sym 9.2, apo 9.6
+wilcox.test(hscombined$Z,apohrcombined$Z) #sym 8.6, apo 9.9
+wilcox.test(escombined$Z,hscombined$Z) #sym 9.2, sym 8.6
+wilcox.test(escombined$Z,scombined$Z) #sym 9.2, sym 9.4
+wilcox.test(x = combinedfiles2$es_dist.1, y = combinedfiles2$ns_dist.1, data = combinedfiles2, alternative = "less")
+
+```
+
+```{r, echo=FALSE}
+
+ggplot() +
+  geom_density(aes(x=ahmedian), alpha = 0.5,  fill = "blue", linetype = 2, data=zahsum) +
+  geom_density(aes(x=aemedian), alpha = 0.5,  fill = "yellow", data=zaesum) +
+  xlim(0,20) + theme_minimal() + xlab("Z-axis location in tentacle (microns)")
+#ggsave("line-ryb-apo-median.pdf", height = 5, width = 6.5)
+
+
+ggplot() +
+  geom_density(aes(x=smedian), alpha = 0.5,  fill = "red", linetype = 3, data=zssum) +
+  geom_density(aes(x=hmedian), alpha = 0.5,  fill = "blue", linetype = 2, data=zhssum) +
+  geom_density(aes(x=emedian), alpha = 0.5,  fill = "yellow", data=zessum) +
+  xlim(0,20) + theme_minimal() + xlab("Z-axis location in tentacle (microns)") 
+  
+#ggsave("line-ryb-sym-median.pdf", height = 5, width = 6.5)
+
+```
+
+```{r, echo=FALSE}
+
+
+
+```
+
+```{r, echo=FALSE}
+
+
+```
+
+```{r, echo=FALSE}
+
+
+```
+
+```{r, echo=FALSE}
+
+
+```
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
