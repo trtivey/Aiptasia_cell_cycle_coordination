@@ -1,0 +1,2 @@
+ 	Volume (micron^3)	Surface (micron^2)	Nb of obj. voxels	Nb of surf. voxels	IntDen	Mean	StdDev	Median	Min	Max	X	Y	Z	Mean dist. to surf. (micron)	SD dist. to surf. (micron)	Median dist. to surf. (micron)	XM	YM	ZM	BX	BY	BZ	B-width	B-height	B-depth
+1	354968.250	59503.348	2156365	279535	97113006080.000	45035.516	9445.354	48671	11262	61268	563.183	503.922	8.941	87.090	42.247	87.452	566.084	505.130	8.989	189	336	1	748	397	17
